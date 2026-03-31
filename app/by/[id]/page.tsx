@@ -247,6 +247,7 @@ export default function ByPage() {
           // Tag som hvit chip med mørk bakgrunn
           map.addLayer({
             id: sourceId + '-chip', type: 'symbol', source: sourceId,
+            minzoom: 13,
             layout: {
               'text-field': ['concat', ' ', ['get', 'tekst'], ' '],
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
@@ -314,49 +315,77 @@ export default function ByPage() {
 
       
 
-      {/* Filter-knapper */}
+      {/* Legende */}
       {!visPanel && (
-        <div style={{ position: 'fixed', bottom: 105, left: '50%', transform: 'translateX(-50%)', zIndex: 25, display: 'flex', gap: 8, pointerEvents: 'auto' }}>
-          {[
-            { id: 'kveld', label: '🌙 Kveld' },
-            { id: 'dag', label: '☕ Dag' },
-            { id: 'kultur', label: '🎨 Kultur' },
-          ].map(f => (
-            <button key={f.id}
-              onClick={() => {
-                setAktiveFiltre(prev => {
-                  const ny = new Set(prev);
-                  if (ny.has(f.id)) ny.delete(f.id);
-                  else ny.add(f.id);
-                  
-                  if (mapRef.current) {
-                    try {
-                      if (ny.size === 0) {
-                        mapRef.current.setFilter('heatmap', null);
-                        mapRef.current.setFilter('venues-points', null);
-                      } else {
-                        const filter = ['in', ['get', 'kategori'], ['literal', Array.from(ny)]];
-                        mapRef.current.setFilter('heatmap', filter);
-                        mapRef.current.setFilter('venues-points', filter);
-                      }
-                    } catch(e) {}
-                  }
-                  return ny;
-                });
-              }}
-              style={{
-                padding: '8px 16px', borderRadius: 9999, border: 'none', cursor: 'pointer',
-                fontFamily: 'Manrope', fontWeight: 700, fontSize: 13,
-                background: aktiveFiltre.has(f.id) ? '#f59e0b' : 'rgba(20,20,20,0.9)',
-                color: aktiveFiltre.has(f.id) ? '#0a0a0a' : 'rgba(255,255,255,0.8)',
-                backdropFilter: 'blur(16px)',
-                boxShadow: aktiveFiltre.has(f.id) ? '0 0 20px rgba(245,158,11,0.4)' : '0 2px 12px rgba(0,0,0,0.4)',
-                transition: 'all 0.2s',
-              }}>
-              {f.label}
-            </button>
-          ))}
+        <div style={{ position: 'fixed', top: 72, right: 16, zIndex: 25, background: 'rgba(14,14,14,0.85)', backdropFilter: 'blur(16px)', borderRadius: 12, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+          <svg width="20" height="12" style={{ flexShrink: 0 }}>
+            <line x1="0" y1="6" x2="20" y2="6" stroke="white" strokeWidth="1.5" strokeDasharray="4 3" strokeOpacity="0.75"/>
+          </svg>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>Her er det kult</span>
         </div>
+      )}
+
+      {/* Bunn-nav med integrerte filtre */}
+      {!visPanel && (
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 30, background: 'rgba(12,12,12,0.97)', backdropFilter: 'blur(24px)', borderRadius: '24px 24px 0 0' }}>
+          {/* Filter-rad */}
+          <div style={{ display: 'flex', gap: 8, padding: '14px 20px 10px' }}>
+            {[
+              { id: 'kveld', label: '🌙 Kveld' },
+              { id: 'dag', label: '☕ Dag' },
+              { id: 'kultur', label: '🎨 Kultur' },
+            ].map(f => (
+              <button key={f.id}
+                onClick={() => {
+                  setAktiveFiltre(prev => {
+                    const ny = new Set(prev);
+                    if (ny.has(f.id)) ny.delete(f.id);
+                    else ny.add(f.id);
+                    if (mapRef.current) {
+                      try {
+                        if (ny.size === 0) {
+                          mapRef.current.setFilter('heatmap', null);
+                          mapRef.current.setFilter('venues-points', null);
+                        } else {
+                          const filter = ['in', ['get', 'kategori'], ['literal', Array.from(ny)]];
+                          mapRef.current.setFilter('heatmap', filter);
+                          mapRef.current.setFilter('venues-points', filter);
+                        }
+                      } catch(e) {}
+                    }
+                    return ny;
+                  });
+                }}
+                style={{
+                  flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer',
+                  fontFamily: 'Manrope', fontWeight: 700, fontSize: 12,
+                  border: aktiveFiltre.has(f.id) ? '1.5px solid rgba(245,158,11,0.5)' : '1.5px solid rgba(255,255,255,0.07)',
+                  background: aktiveFiltre.has(f.id) ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
+                  color: aktiveFiltre.has(f.id) ? '#f59e0b' : 'rgba(255,255,255,0.4)',
+                  transition: 'all 0.2s',
+                }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {/* Separator */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '0 20px' }} />
+          {/* Nav-ikoner */}
+          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '12px 16px 32px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', borderRadius: 9999, background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+              <span style={{ fontSize: 20 }}>⊞</span>
+              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>KART</span>
+            </div>
+            <div onClick={() => router.push('/byer')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', color: 'rgba(173,170,170,0.5)', cursor: 'pointer' }}>
+              <span style={{ fontSize: 20 }}>◎</span>
+              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>BYER</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', color: 'rgba(173,170,170,0.5)' }}>
+              <span style={{ fontSize: 20 }}>◯</span>
+              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>PROFIL</span>
+            </div>
+          </div>
+        </nav>
       )}
 
       {/* Stedpanel */}
@@ -434,21 +463,7 @@ export default function ByPage() {
         </div>
       )}
 
-      {/* Bunn-nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: visPanel ? 0 : 30, background: 'rgba(18,18,18,0.95)', backdropFilter: 'blur(24px)', borderRadius: '24px 24px 0 0', display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '14px 16px 32px', opacity: visPanel ? 0 : 1, transition: 'opacity 0.2s', pointerEvents: visPanel ? 'none' : 'auto' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 24px', borderRadius: 9999, background: 'linear-gradient(to bottom, rgba(245,158,11,0.2), rgba(245,158,11,0.08))', color: '#f59e0b', boxShadow: '0 0 15px rgba(245,158,11,0.25)' }}>
-          <span style={{ fontSize: 20 }}>⊞</span>
-          <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>KART</span>
-        </div>
-        <div onClick={() => router.push('/byer')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 24px', borderRadius: 9999, color: 'rgba(173,170,170,0.5)', cursor: 'pointer' }}>
-          <span style={{ fontSize: 20 }}>◎</span>
-          <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>BYER</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 24px', borderRadius: 9999, color: 'rgba(173,170,170,0.5)' }}>
-          <span style={{ fontSize: 20 }}>◯</span>
-          <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>PROFIL</span>
-        </div>
-      </nav>
+
 
     </div>
   );
