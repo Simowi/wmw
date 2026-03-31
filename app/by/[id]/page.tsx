@@ -19,6 +19,7 @@ export default function ByPage() {
   const [valgtSone, setValgtSone] = useState<any>(null);
   const [aktiveFiltre, setAktiveFiltre] = useState<Set<string>>(new Set());
   const [geoAktiv, setGeoAktiv] = useState(false);
+  const [hoodMode, setHoodMode] = useState(false);
   const [alleByer, setAlleByer] = useState<By[]>([]);
   const [visDropdown, setVisDropdown] = useState(false);
 
@@ -106,6 +107,51 @@ export default function ByPage() {
         paint: { 'circle-radius': 8, 'circle-color': '#f59e0b', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
       });
 
+      
+      // --- HOODMAPS LAG ---
+      const { data: hTags } = await supabase.from('hood_tags').select('*').eq('by_id', by.id);
+      if (hTags?.length) {
+        map.addSource('hood-source', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: hTags.map(t => ({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [t.lng, t.lat] },
+              properties: { tekst: t.tekst, kategori: t.kategori }
+            }))
+          }
+        });
+
+        map.addLayer({
+          id: 'hood-layer',
+          type: 'symbol',
+          source: 'hood-source',
+          layout: {
+            'visibility': 'none',
+            'text-field': ['get', 'tekst'],
+            'text-font': ['Open Sans Bold'],
+            'text-size': 12,
+            'text-transform': 'none', // Behold små/store bokstaver for "rå" følelse
+            'text-letter-spacing': 0.05,
+            'text-padding': 10
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': [
+              'match', ['get', 'kategori'],
+              'cool', '#ff9800',
+              'rich', '#4caf50',
+              'suits', '#2196f3',
+              'tourists', '#f44336',
+              'crime', '#000000',
+              '#888888'
+            ],
+            'text-halo-width': 4
+          }
+        });
+      }
+    
       // Flytende Vibe-tags (Floating Labels)
       const { data: soneTags } = await supabase.from('sone_tags').select('*').eq('by_id', by.id);
       if (soneTags?.length) {
@@ -273,6 +319,21 @@ export default function ByPage() {
           {[{id:'kveld',label:'🌙 Kveld'},{id:'dag',label:'☕ Dag'},{id:'kultur',label:'🎨 Kultur'}].map(f => (
             <button key={f.id} onClick={() => toggleFilter(f.id)} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 11, background: aktiveFiltre.has(f.id) ? '#f59e0b' : 'transparent', color: aktiveFiltre.has(f.id) ? '#000' : '#fff' }}>{f.label}</button>
           ))}
+        
+          <button 
+            onClick={() => {
+              const nyStatus = !hoodMode;
+              setHoodMode(nyStatus);
+              if (mapRef.current) {
+                mapRef.current.setLayoutProperty('hood-layer', 'visibility', nyStatus ? 'visible' : 'none');
+                // Skjul vanlige tags når hoodmaps er på for å unngå kaos
+                mapRef.current.setLayoutProperty('vibe-labels-layer', 'visibility', nyStatus ? 'none' : 'visible');
+              }
+            }} 
+            style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 11, background: hoodMode ? '#ff3e00' : 'rgba(255,255,255,0.1)', color: '#fff', marginLeft: 10 }}
+          >
+            {hoodMode ? '🕵️ HOODS PÅ' : '🕵️ HOODS'}
+          </button>
         </div>
       )}
 
