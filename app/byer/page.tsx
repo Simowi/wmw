@@ -37,9 +37,7 @@ export default function ByerPage() {
       <main style={{ paddingTop: 72, paddingBottom: 110 }}>
         {/* Hero */}
         <div style={{ padding: '32px 20px 28px' }}>
-          <h1 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 44, lineHeight: 1, letterSpacing: '-0.04em', marginBottom: 0 }}>
-            Hvor skal vi stikke'a?
-          </h1>
+          <h1 className="text-4xl font-bold mb-8 text-amber-500 font-manrope tracking-tighter uppercase">Hvor er det fett i ...</h1>
         </div>
 
         {/* By-kort */}
