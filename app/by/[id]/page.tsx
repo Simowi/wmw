@@ -26,6 +26,8 @@ export default function ByPage() {
   const [visPanel, setVisPanel] = useState(false);
   const [valgtSted, setValgtSted] = useState<any>(null);
   const [aktiveFiltre, setAktiveFiltre] = useState<Set<string>>(new Set());
+  const [geoAktiv, setGeoAktiv] = useState(false);
+  const userMarkerRef = useRef<any>(null);
   const [alleByer, setAlleByer] = useState<By[]>([]);
   const [visDropdown, setVisDropdown] = useState(false);
 
@@ -39,8 +41,23 @@ export default function ByPage() {
   useEffect(() => {
     if (!by || !mapContainer.current) return;
     initMap(by);
-    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+  return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
   }, [by]);
+
+  function finnMinPosisjon() {
+    if (!navigator.geolocation || !mapRef.current) return;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const lng = pos.coords.longitude;
+      const lat = pos.coords.latitude;
+      mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
+      if (userMarkerRef.current) userMarkerRef.current.remove();
+      const el = document.createElement('div');
+      el.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 6px rgba(59,130,246,0.2),0 2px 8px rgba(0,0,0,0.4);';
+      const ml = (window as any)._maplibregl;
+      if (ml) userMarkerRef.current = new ml.Marker({ element: el }).setLngLat([lng, lat]).addTo(mapRef.current);
+      setGeoAktiv(true);
+    }, () => {});
+  }
 
   function getKategori(type: string): string {
     const kveld = ['bar', 'nightclub', 'music_venue', 'theatre'];
@@ -56,6 +73,7 @@ export default function ByPage() {
     if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     const maplibregl = (await import('maplibre-gl')).default;
     await import('maplibre-gl/dist/maplibre-gl.css');
+    (window as any)._maplibregl = maplibregl;
 
     const map = new maplibregl.Map({
       container: mapContainer.current!,
@@ -325,11 +343,24 @@ export default function ByPage() {
         </div>
       )}
 
+      {/* Geolokasjon-knapp */}
+      {!visPanel && (
+        <button onClick={finnMinPosisjon} style={{ position: 'fixed', bottom: 88, right: 16, zIndex: 29, width: 44, height: 44, borderRadius: '50%', background: 'rgba(12,12,12,0.92)', backdropFilter: 'blur(16px)', border: geoAktiv ? '1.5px solid #3b82f6' : '1.5px solid rgba(255,255,255,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3" fill={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.7)'}/>
+            <circle cx="12" cy="12" r="7" stroke={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.5)'} strokeWidth="1.5"/>
+            <line x1="12" y1="2" x2="12" y2="5" stroke={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.5)'} strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="12" y1="19" x2="12" y2="22" stroke={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.5)'} strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="2" y1="12" x2="5" y2="12" stroke={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.5)'} strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="19" y1="12" x2="22" y2="12" stroke={geoAktiv ? '#3b82f6' : 'rgba(255,255,255,0.5)'} strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+      )}
+
       {/* Bunn-nav med integrerte filtre */}
       {!visPanel && (
-        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 30, background: 'rgba(12,12,12,0.97)', backdropFilter: 'blur(24px)', borderRadius: '24px 24px 0 0' }}>
-          {/* Filter-rad */}
-          <div style={{ display: 'flex', gap: 8, padding: '14px 20px 10px' }}>
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 30, background: 'rgba(12,12,12,0.97)', backdropFilter: 'blur(24px)', borderRadius: '20px 20px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 28px', gap: 6 }}>
             {[
               { id: 'kveld', label: '🌙 Kveld' },
               { id: 'dag', label: '☕ Dag' },
@@ -357,32 +388,24 @@ export default function ByPage() {
                   });
                 }}
                 style={{
-                  flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer',
-                  fontFamily: 'Manrope', fontWeight: 700, fontSize: 12,
+                  flex: 1, padding: '7px 4px', borderRadius: 9, cursor: 'pointer',
+                  fontFamily: 'Manrope', fontWeight: 700, fontSize: 11,
                   border: aktiveFiltre.has(f.id) ? '1.5px solid rgba(245,158,11,0.5)' : '1.5px solid rgba(255,255,255,0.07)',
                   background: aktiveFiltre.has(f.id) ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
-                  color: aktiveFiltre.has(f.id) ? '#f59e0b' : 'rgba(255,255,255,0.4)',
+                  color: aktiveFiltre.has(f.id) ? '#f59e0b' : 'rgba(255,255,255,0.35)',
                   transition: 'all 0.2s',
                 }}>
                 {f.label}
               </button>
             ))}
-          </div>
-          {/* Separator */}
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '0 20px' }} />
-          {/* Nav-ikoner */}
-          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '12px 16px 32px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', borderRadius: 9999, background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
-              <span style={{ fontSize: 20 }}>⊞</span>
-              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>KART</span>
+            <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.08)', flexShrink: 0, margin: '0 2px' }} />
+            <div onClick={() => router.push('/byer')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 10px', color: 'rgba(173,170,170,0.45)', cursor: 'pointer', flexShrink: 0 }}>
+              <span style={{ fontSize: 17 }}>◎</span>
+              <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.1em' }}>BYER</span>
             </div>
-            <div onClick={() => router.push('/byer')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', color: 'rgba(173,170,170,0.5)', cursor: 'pointer' }}>
-              <span style={{ fontSize: 20 }}>◎</span>
-              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>BYER</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 24px', color: 'rgba(173,170,170,0.5)' }}>
-              <span style={{ fontSize: 20 }}>◯</span>
-              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.15em' }}>PROFIL</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 10px', color: 'rgba(173,170,170,0.45)', flexShrink: 0 }}>
+              <span style={{ fontSize: 17 }}>◯</span>
+              <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.1em' }}>PROFIL</span>
             </div>
           </div>
         </nav>
