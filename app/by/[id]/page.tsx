@@ -49,15 +49,12 @@ export default function ByPage() {
       const { longitude: lng, latitude: lat } = pos.coords;
       mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
       if (userMarkerRef.current) userMarkerRef.current.remove();
-      
       const el = document.createElement('div');
-      el.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 6px rgba(59,130,246,0.2),0 2px 8px rgba(0,0,0,0.4);';
+      el.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 6px rgba(59,130,246,0.2);';
       const maplibregl = (window as any)._maplibregl;
-      if (maplibregl) {
-        userMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(mapRef.current);
-        setGeoAktiv(true);
-      }
-    }, (err) => console.error("GPS-feil:", err));
+      userMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(mapRef.current);
+      setGeoAktiv(true);
+    });
   }
 
   async function initMap(by: By) {
@@ -109,6 +106,25 @@ export default function ByPage() {
         paint: { 'circle-radius': 8, 'circle-color': '#f59e0b', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
       });
 
+      // Flytende Vibe-tags (Floating Labels)
+      const { data: soneTags } = await supabase.from('sone_tags').select('*').eq('by_id', by.id);
+      if (soneTags?.length) {
+        soneTags.forEach((tag: any) => {
+          const sid = 'vtag-' + tag.id;
+          map.addSource(sid, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [tag.lng, tag.lat] }, properties: { tekst: tag.tekst } } });
+          map.addLayer({
+            id: sid + '-layer', type: 'symbol', source: sid,
+            layout: { 
+              'text-field': ['get', 'tekst'], 'text-font': ['Open Sans Bold'], 'text-size': 9,
+              'text-transform': 'uppercase', 'text-letter-spacing': 0.12, 'text-padding': 8,
+              'text-allow-overlap': false
+            },
+            paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 3 }
+          });
+        });
+      }
+
+      // Soner (Polygon)
       const { data: soner } = await supabase.from('soner').select('*').eq('by_id', by.id);
       soner?.forEach((sone: any) => {
         const sid = 'sone-' + sone.id;
@@ -118,15 +134,11 @@ export default function ByPage() {
 
         map.addSource(sid, { type: 'geojson', data: { type: 'Feature', properties: { ...sone, isSone: true }, geometry: sone.koordinater } });
         map.addLayer({ id: sid + '-fill', type: 'fill', source: sid, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.08 } });
-        map.addLayer({ id: sid + '-line', type: 'line', source: sid, paint: { 'line-color': '#fff', 'line-width': 1.5, 'line-dasharray': [4, 3], 'line-opacity': 0.5 } });
-
+        
         map.addSource(sid + '-lbl', { type: 'geojson', data: { type: 'Feature', properties: { ...sone, isSone: true }, geometry: { type: 'Point', coordinates: [midLng, midLat] } } });
         map.addLayer({
           id: sid + '-lbl-layer', type: 'symbol', source: sid + '-lbl',
-          layout: { 
-            'text-field': ['get', 'navn'], 'text-font': ['Open Sans Bold'], 'text-size': 13, 
-            'text-transform': 'uppercase', 'text-letter-spacing': 0.1 
-          },
+          layout: { 'text-field': ['get', 'navn'], 'text-font': ['Open Sans Bold'], 'text-size': 13, 'text-transform': 'uppercase' },
           paint: { 'text-color': '#f59e0b', 'text-halo-color': '#000', 'text-halo-width': 2 }
         });
       });
@@ -137,45 +149,8 @@ export default function ByPage() {
         if (venue) { setValgtSted(venue.properties); setValgtSone(null); setVisPanel(true); return; }
         const sone = features.find(f => f.properties?.isSone);
         if (sone) { setValgtSone(sone.properties); setValgtSted(null); setVisPanel(true); return; }
-        if (features.find(f => f.layer.id === 'heatmap')) { setValgtSted(null); setValgtSone(null); setVisPanel(true); }
       });
 
-      
-      // Flytende Vibe-tags
-      const { data: soneTags } = await supabase.from('sone_tags').select('*').eq('by_id', by.id);
-      if (soneTags?.length) {
-        soneTags.forEach((tag: any) => {
-          const sourceId = 'vtag-' + tag.id;
-          if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
-              type: 'geojson',
-              data: {
-                type: 'Feature',
-                properties: { tekst: tag.tekst },
-                geometry: { type: 'Point', coordinates: [tag.lng, tag.lat] }
-              }
-            });
-            map.addLayer({
-              id: sourceId + '-chip', type: 'symbol', source: sourceId,
-              minzoom: 12.5,
-              layout: {
-                'text-field': ['get', 'tekst'],
-                'text-font': ['Open Sans Bold'],
-                'text-size': 9,
-                'text-letter-spacing': 0.1,
-                'text-padding': 4,
-              },
-              paint: {
-                'text-color': '#ffffff',
-                'text-halo-color': 'rgba(10,10,10,0.9)',
-                'text-halo-width': 6,
-                'text-halo-blur': 1,
-              }
-            });
-          }
-        });
-      }
-    
       map.on('mouseenter', 'venues-points', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'venues-points', () => { map.getCanvas().style.cursor = ''; });
     });
@@ -196,94 +171,93 @@ export default function ByPage() {
 
   return (
     <div style={{ background: '#0a0a0a', height: '100vh', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-      <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 50, background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
-        <button onClick={() => router.push('/byer')} style={{ background: 'rgba(38,38,38,0.8)', border: 'none', color: '#f59e0b', width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', fontSize: 18 }}>←</button>
-        <button onClick={() => setVisDropdown(!visDropdown)} style={{ background: 'rgba(38,38,38,0.9)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 9999, fontWeight: 900, fontSize: 16 }}>{by?.navn} ▼</button>
-        <div style={{ fontSize: 10, color: '#adaaaa', fontWeight: 600 }}>{by?.land?.toUpperCase()}</div>
-        {visDropdown && (
-          <div style={{ position: 'absolute', top: '110%', left: '50%', transform: 'translateX(-50%)', background: '#121212', borderRadius: 16, overflow: 'hidden', minWidth: 160, zIndex: 100, border: '1px solid #333' }}>
-            {alleByer.map(b => (
-              <button key={b.id} onClick={() => { router.push('/by/' + b.id); setVisDropdown(false); }} style={{ display: 'block', width: '100%', padding: '12px 20px', background: 'none', border: 'none', color: '#fff', textAlign: 'left', fontWeight: 700 }}>{b.navn}</button>
-            ))}
-          </div>
-        )}
+      {/* Header */}
+      
+      <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 100, background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px' }}>
+        <button onClick={() => router.push('/byer')} style={{ background: 'rgba(38,38,38,0.8)', border: 'none', color: '#f59e0b', width: 36, height: 36, borderRadius: '50%', cursor: 'pointer' }}>←</button>
+        
+        <div style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setVisDropdown(!visDropdown)} 
+            style={{ background: 'rgba(38,38,38,0.9)', border: 'none', color: '#fff', padding: '8px 24px', borderRadius: 999, fontWeight: 900, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            {by?.navn || 'Laster...'} <span style={{ fontSize: 10, opacity: 0.5 }}>{visDropdown ? '▲' : '▼'}</span>
+          </button>
+          
+          {visDropdown && (
+            <div style={{ position: 'absolute', top: '120%', left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', borderRadius: 16, border: '1px solid #333', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', overflow: 'hidden', minWidth: 180, zIndex: 110 }}>
+              {alleByer.map(b => (
+                <button 
+                  key={b.id} 
+                  onClick={() => { router.push('/by/' + b.id); setVisDropdown(false); }}
+                  style={{ width: '100%', padding: '12px 20px', background: b.id === id ? '#222' : 'transparent', border: 'none', color: b.id === id ? '#f59e0b' : '#fff', textAlign: 'left', cursor: 'pointer', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #222' }}
+                >
+                  {b.navn}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ fontSize: 10, color: '#adaaaa', fontWeight: 800, letterSpacing: '0.05em' }}>{by?.land?.toUpperCase()}</div>
       </nav>
 
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
-      {/* GPS-knapp */}
+      {/* GPS */}
       {!visPanel && (
-        <button onClick={finnMinPosisjon} style={{ position: 'fixed', bottom: 100, right: 16, zIndex: 29, width: 44, height: 44, borderRadius: '50%', background: 'rgba(12,12,12,0.95)', border: geoAktiv ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={geoAktiv ? '#3b82f6' : '#fff'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
-            <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
-            <line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
-          </svg>
+        <button onClick={finnMinPosisjon} style={{ position: 'fixed', bottom: 100, right: 16, zIndex: 30, width: 44, height: 44, borderRadius: '50%', background: '#111', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
         </button>
       )}
 
-      {/* Filter-meny */}
+      {/* Filter */}
       {!visPanel && (
-        <div style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', zIndex: 30, display: 'flex', gap: 6, background: 'rgba(10,10,10,0.9)', padding: '6px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)' }}>
-          {[{ id: 'kveld', label: '🌙 Kveld' }, { id: 'dag', label: '☕ Dag' }, { id: 'kultur', label: '🎨 Kultur' }].map(f => (
-            <button key={f.id} onClick={() => toggleFilter(f.id)} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 11, background: aktiveFiltre.has(f.id) ? '#f59e0b' : 'transparent', color: aktiveFiltre.has(f.id) ? '#000' : '#fff' }}>{f.label}</button>
+        <div style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', zIndex: 30, display: 'flex', gap: 6, background: 'rgba(10,10,10,0.9)', padding: '6px', borderRadius: 14, border: '1px solid #333' }}>
+          {[{id:'kveld',label:'🌙 Kveld'},{id:'dag',label:'☕ Dag'},{id:'kultur',label:'🎨 Kultur'}].map(f => (
+            <button key={f.id} onClick={() => toggleFilter(f.id)} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 11, background: aktiveFiltre.has(f.id) ? '#f59e0b' : 'transparent', color: aktiveFiltre.has(f.id) ? '#000' : '#fff' }}>{f.label}</button>
           ))}
         </div>
       )}
 
-      {/* Stedpanel */}
+      {/* Panel */}
       {visPanel && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 60, background: '#0e0e0e', borderRadius: '28px 28px 0 0', padding: '24px 24px 40px', maxHeight: '70vh', overflowY: 'auto' }}>
-          <button onClick={() => { setVisPanel(false); setValgtSted(null); setValgtSone(null); }} style={{ position: 'absolute', top: 20, right: 20, background: '#222', border: 'none', color: '#fff', width: 34, height: 34, borderRadius: '50%', fontSize: 20, cursor: 'pointer' }}>×</button>
-          
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 60, background: '#0e0e0e', borderRadius: '28px 28px 0 0', padding: '24px', maxHeight: '70vh', overflowY: 'auto' }}>
+          <button onClick={() => {setVisPanel(false); setValgtSted(null); setValgtSone(null);}} style={{ position: 'absolute', top: 20, right: 20, background: '#222', border: 'none', color: '#fff', width: 34, height: 34, borderRadius: '50%' }}>×</button>
           {valgtSone ? (
             <div>
               <span style={{ color: '#f59e0b', fontSize: 10, fontWeight: 800 }}>NABOLAG</span>
               <h2 style={{ fontSize: 32, fontWeight: 900, marginBottom: 12 }}>{valgtSone.navn}</h2>
               {/* Nabolags-tags */}
-              {valgtSone.tags && valgtSone.tags.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-                  {valgtSone.tags.map((tag, i) => (
-                    <span key={i} style={{ 
-                      fontSize: 10, 
-                      fontWeight: 700, 
-                      padding: '4px 10px', 
-                      background: 'rgba(255,255,255,0.08)', 
-                      color: 'rgba(255,255,255,0.7)', 
-                      borderRadius: 6, 
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      textTransform: 'uppercase'
-                    }}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                let tags = valgtSone.tags;
+                if (typeof tags === 'string') tags = tags.replace(/[{}]/g, '').split(',');
+                if (Array.isArray(tags) && tags.length > 0) {
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                      {tags.map((tag: string, i: number) => (
+                        <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', background: 'rgba(255,255,255,0.08)', color: '#fff', borderRadius: 6, border: '1px solid #333', textTransform: 'uppercase' }}>{tag.trim()}</span>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <p style={{ fontSize: 16, lineHeight: 1.6, opacity: 0.85 }}>{valgtSone.beskrivelse}</p>
             </div>
           ) : valgtSted ? (
             <div>
               <span style={{ color: '#f59e0b', fontSize: 10, fontWeight: 800 }}>{valgtSted.type?.toUpperCase()}</span>
               <h2 style={{ fontSize: 28, fontWeight: 900, marginBottom: 6 }}>{valgtSted.navn}</h2>
-              <p style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>📍 {valgtSted.adresse || 'Nabolaget ' + by?.navn}</p>
-              {valgtSted.beskrivelse && <p style={{ fontStyle: 'italic', borderLeft: '3px solid #f59e0b', paddingLeft: 16, marginBottom: 20, lineHeight: 1.5 }}>"{valgtSted.beskrivelse}"</p>}
+              <p style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>📍 {valgtSted.adresse || by?.navn}</p>
+              {valgtSted.beskrivelse && <p style={{ fontStyle: 'italic', borderLeft: '3px solid #f59e0b', paddingLeft: 16, marginBottom: 20 }}>"{valgtSted.beskrivelse}"</p>}
               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(valgtSted.navn + ' ' + (by?.navn || ''))}`} target="_blank" style={{ display: 'inline-block', background: '#f59e0b', color: '#000', padding: '12px 20px', borderRadius: 12, fontWeight: 800, textDecoration: 'none', fontSize: 14, marginBottom: 24 }}>🔍 LES MER PÅ GOOGLE MAPS</a>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ height: 6, background: '#222', flex: 1, borderRadius: 3, overflow: 'hidden' }}><div style={{ height: '100%', background: '#f59e0b', width: (valgtSted.vibe_score * 100) + '%' }} /></div>
                 <span style={{ fontSize: 12, fontWeight: 800 }}>VIBE {Math.round(valgtSted.vibe_score * 10)}/10</span>
               </div>
             </div>
-          ) : (
-            <div>
-              <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>Oppdag {by?.navn}</h2>
-              {venues.slice(0, 15).map(v => (
-                <div key={v.id} onClick={() => setValgtSted(v)} style={{ padding: '14px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{v.navn}</div>
-                  <div style={{ fontSize: 11, color: '#aaa' }}>{v.type} · {v.adresse || by?.navn}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>
