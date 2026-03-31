@@ -140,6 +140,42 @@ export default function ByPage() {
         if (features.find(f => f.layer.id === 'heatmap')) { setValgtSted(null); setValgtSone(null); setVisPanel(true); }
       });
 
+      
+      // Flytende Vibe-tags
+      const { data: soneTags } = await supabase.from('sone_tags').select('*').eq('by_id', by.id);
+      if (soneTags?.length) {
+        soneTags.forEach((tag: any) => {
+          const sourceId = 'vtag-' + tag.id;
+          if (!map.getSource(sourceId)) {
+            map.addSource(sourceId, {
+              type: 'geojson',
+              data: {
+                type: 'Feature',
+                properties: { tekst: tag.tekst },
+                geometry: { type: 'Point', coordinates: [tag.lng, tag.lat] }
+              }
+            });
+            map.addLayer({
+              id: sourceId + '-chip', type: 'symbol', source: sourceId,
+              minzoom: 12.5,
+              layout: {
+                'text-field': ['get', 'tekst'],
+                'text-font': ['Open Sans Bold'],
+                'text-size': 9,
+                'text-letter-spacing': 0.1,
+                'text-padding': 4,
+              },
+              paint: {
+                'text-color': '#ffffff',
+                'text-halo-color': 'rgba(10,10,10,0.9)',
+                'text-halo-width': 6,
+                'text-halo-blur': 1,
+              }
+            });
+          }
+        });
+      }
+    
       map.on('mouseenter', 'venues-points', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'venues-points', () => { map.getCanvas().style.cursor = ''; });
     });
