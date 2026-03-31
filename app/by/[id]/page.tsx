@@ -90,13 +90,13 @@ export default function ByPage() {
         id: 'heatmap', type: 'heatmap', source: 'venues', maxzoom: 17,
         paint: {
           'heatmap-weight': ['interpolate', ['linear'], ['get', 'vibe_score'], 0, 0, 1, 1],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 15, 3],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 4],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
             0, 'rgba(0,0,0,0)', 0.2, 'rgba(80,35,0,0.4)', 0.4, 'rgba(150,70,0,0.6)', 
             0.6, 'rgba(210,110,0,0.75)', 0.8, 'rgba(245,158,11,0.85)', 1.0, 'rgba(255,200,60,0.95)'
           ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 20, 15, 60],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 25, 15, 70],
           'heatmap-opacity': 0.8
         }
       });
@@ -133,6 +133,18 @@ export default function ByPage() {
         const midLat = coords.reduce((s: any, c: any) => s + c[1], 0) / coords.length;
 
         map.addSource(sid, { type: 'geojson', data: { type: 'Feature', properties: { ...sone, isSone: true }, geometry: sone.koordinater } });
+        
+        map.addLayer({ 
+          id: sid + '-line', 
+          type: 'line', 
+          source: sid, 
+          paint: { 
+            'line-color': '#ffffff', 
+            'line-width': 1.5, 
+            'line-dasharray': [3, 2], 
+            'line-opacity': 0.6 
+          } 
+        });
         map.addLayer({ id: sid + '-fill', type: 'fill', source: sid, paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.08 } });
         
         map.addSource(sid + '-lbl', { type: 'geojson', data: { type: 'Feature', properties: { ...sone, isSone: true }, geometry: { type: 'Point', coordinates: [midLng, midLat] } } });
@@ -151,6 +163,44 @@ export default function ByPage() {
         if (sone) { setValgtSone(sone.properties); setValgtSted(null); setVisPanel(true); return; }
       });
 
+      
+      // --- FLYTENDE VIBE-TAGS ---
+      const { data: vTags } = await supabase.from('sone_tags').select('*').eq('by_id', by.id);
+      if (vTags && vTags.length > 0) {
+        console.log("Fant " + vTags.length + " tags for " + by.navn);
+        
+        const tagGeojson = {
+          type: 'FeatureCollection',
+          features: vTags.map(t => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [t.lng, t.lat] },
+            properties: { tekst: t.tekst }
+          }))
+        };
+
+        map.addSource('vibe-labels-source', { type: 'geojson', data: tagGeojson });
+        map.addLayer({
+          id: 'vibe-labels-layer',
+          type: 'symbol',
+          source: 'vibe-labels-source',
+          minzoom: 11, // Gjør dem synlige tidligere!
+          layout: {
+            'text-field': ['get', 'tekst'],
+            'text-font': ['Open Sans Bold'],
+            'text-size': ['interpolate', ['linear'], ['zoom'], 11, 8, 16, 11],
+            'text-transform': 'uppercase',
+            'text-letter-spacing': 0.1,
+            'text-allow-overlap': false,
+            'text-ignore-placement': false
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.85)',
+            'text-halo-width': 3,
+          }
+        });
+      }
+    
       map.on('mouseenter', 'venues-points', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'venues-points', () => { map.getCanvas().style.cursor = ''; });
     });
@@ -202,6 +252,12 @@ export default function ByPage() {
         <div style={{ fontSize: 10, color: '#adaaaa', fontWeight: 800, letterSpacing: '0.05em' }}>{by?.land?.toUpperCase()}</div>
       </nav>
 
+      
+      {/* Legend / Kartforklaring */}
+      <div style={{ position: 'fixed', top: 80, right: 20, zIndex: 40, background: 'rgba(10,10,10,0.8)', backdropFilter: 'blur(10px)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 24, height: 2, borderBottom: '2px dashed #ffffff', opacity: 0.8 }}></div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff', letterSpacing: '0.03em' }}>HER ER DET KULT</span>
+      </div>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
       {/* GPS */}
