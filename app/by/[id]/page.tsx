@@ -204,6 +204,25 @@ export default function ByPage() {
             <div>
               <span style={{ color: '#f59e0b', fontSize: 10, fontWeight: 800 }}>NABOLAG</span>
               <h2 style={{ fontSize: 32, fontWeight: 900, marginBottom: 12 }}>{valgtSone.navn}</h2>
+              {/* Nabolags-tags */}
+              {valgtSone.tags && valgtSone.tags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                  {valgtSone.tags.map((tag, i) => (
+                    <span key={i} style={{ 
+                      fontSize: 10, 
+                      fontWeight: 700, 
+                      padding: '4px 10px', 
+                      background: 'rgba(255,255,255,0.08)', 
+                      color: 'rgba(255,255,255,0.7)', 
+                      borderRadius: 6, 
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      textTransform: 'uppercase'
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
               <p style={{ fontSize: 16, lineHeight: 1.6, opacity: 0.85 }}>{valgtSone.beskrivelse}</p>
             </div>
           ) : valgtSted ? (
